@@ -2,51 +2,69 @@ package abigen
 
 import (
 	"bytes"
-	"strings"
+	"fmt"
 	"testing"
-	"text/template"
 
-	"github.com/laizy/web3/abi"
+	"github.com/laizy/web3/utils"
+
+	"github.com/laizy/web3/testutil"
+
 	"github.com/laizy/web3/compiler"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestGenCode(t *testing.T) {
+func TestEventGen(t *testing.T) {
+	if testutil.IsSolcInstalled() == false {
+		t.Skipf("skipping since solidity is not installed")
+	}
+	code := `
+pragma solidity ^0.5.5;
+pragma experimental ABIEncoderV2;
+contract Sample {
+    event Deposit (
+        address indexed _from,
+        address indexed _to,
+        uint256 _amount,
+        bytes _data
+    );
 
+	event Transfer (
+		address indexed from,
+		address indexed to,
+		address indexed amount
+	);
+}
+`
+	solc := &compiler.Solidity{Path: "solc"}
+	output, err := solc.CompileCode(code)
+	utils.Ensure(err)
+	artifact := output["<stdin>:Sample"]
+	config := &Config{
+		Package: "binding",
+		Output:  "sample",
+		Name:    "Sample",
+	}
+
+	b := bytes.NewBuffer(nil)
+	err = GenCodeToWriter(config.Name, artifact, config, b, nil)
+	assert.Nil(t, err)
+
+	fmt.Println(b.String())
+}
+
+func TestGenCode(t *testing.T) {
 	artifact := &compiler.Artifact{
 		Abi: `[{"anonymous":false,"inputs":[{"indexed":true,"name":"owner","type":"address"},{"indexed":true,"name":"spender","type":"address"},{"indexed":false,"name":"value","type":"uint256"}],"name":"Approval","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"from","type":"address"},{"indexed":true,"name":"to","type":"address"},{"indexed":false,"name":"value","type":"uint256"}],"name":"Transfer","type":"event"}]`,
 	}
 	config := &Config{
 		Package: "testPkg",
 		Output:  "testOutput",
-		Name:    "testName",
-	}
-	funcMap := template.FuncMap{
-		"title":      strings.Title,
-		"clean":      cleanName,
-		"arg":        encodeArg,
-		"outputArg":  outputArg,
-		"funcName":   funcName,
-		"tupleElems": tupleElems,
-		"tupleLen":   tupleLen,
-	}
-	tmplAbi, err := template.New("eth-abi").Funcs(funcMap).Parse(templateAbiStr)
-	assert.Nil(t, err)
-	// parse abi
-	abi, err := abi.NewABI(artifact.Abi)
-	assert.Nil(t, err)
-	input := map[string]interface{}{
-		"Ptr":      "a",
-		"Config":   config,
-		"Contract": artifact,
-		"Abi":      abi,
-		"Name":     "ERC20",
+		Name:    "ERC20",
 	}
 
-	var b bytes.Buffer
-	if err := tmplAbi.Execute(&b, input); err != nil {
-		assert.Nil(t, err)
-	}
+	b := bytes.NewBuffer(nil)
+	err := GenCodeToWriter(config.Name, artifact, config, b, nil)
+	assert.Nil(t, err)
 	expected := `package testPkg
 
 import (
