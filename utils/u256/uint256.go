@@ -145,6 +145,14 @@ func (self Int) LessThan(rhs Int) bool {
 	return false
 }
 
+func (self Int) Equal(rhs Int) bool {
+	if self.ToBigInt().Cmp(rhs.ToBigInt()) == 0 {
+		return true
+	}
+
+	return false
+}
+
 func (self Int) String() string {
 	return self.val().String()
 }
